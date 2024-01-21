@@ -1,0 +1,95 @@
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+#include <TinyGPS++.h>
+#include <SoftwareSerial.h>
+
+// Pin configuration for GSM module
+#define GSM_RX 8
+#define GSM_TX 7
+
+// Pin configuration for GPS module
+#define GPS_RX 2
+#define GPS_TX 3
+
+// The set up of the LCD
+LiquidCrystal_I2C lcd(0x27, 16, 2); 
+
+// The set up of the  GSM module
+SoftwareSerial gsmSerial(GSM_RX, GSM_TX);
+
+// THe setup of the  GPS module
+SoftwareSerial gpsSerial(GPS_RX, GPS_TX);
+
+// we Created a TinyGPS++ object
+TinyGPSPlus gps;
+
+void setup() {
+  // Startof the  serial communication/connection
+  Serial.begin(9600);
+  gsmSerial.begin(9600);
+  gpsSerial.begin(9600);
+
+  // setup of  of the  LCD
+  lcd.begin(16, 2);
+  lcd.backlight();
+
+  // Displaying the  initial message on LCD
+  lcd.print("Vehicle Tracker");
+  lcd.setCursor(0, 1);
+  lcd.print("Initializing...");
+  delay(2000);
+}
+
+void loop() {
+  // This will Read GPS data
+  while (gpsSerial.available() > 0) {
+    if (gps.encode(gpsSerial.read())) {
+      displayGPSInfo();
+    }
+  }
+
+  // Check if a new GPS location is available
+  if (gps.location.isUpdated()) {
+    sendLocationSMS();
+  }
+}
+
+void displayGPSInfo() {
+  lcd.clear();
+  lcd.print("Lat: ");
+  lcd.print(gps.location.lat(), 6);
+  lcd.setCursor(0, 1);
+  lcd.print("Lng: ");
+  lcd.print(gps.location.lng(), 6);
+}
+
+void sendLocationSMS() {
+  gsmSerial.println("AT+CMGF=1"); // it will Set SMS mode to text
+  delay(1000);
+
+  //we will  Get GPS coordinates
+  String latitude = String(gps.location.lat(), 6);
+  String longitude = String(gps.location.lng(), 6);
+
+  // Compose SMS message
+  String smsMessage = "Vehicle Location:\n";
+  smsMessage += "Lat: " + latitude + "\n";
+  smsMessage += "Lng: " + longitude;
+
+  // Send SMS
+  gsmSerial.print("AT+CMGS=\"+1234567890\"\r"); // we can replace the phone number as we wish
+  delay(1000);
+  gsmSerial.print(smsMessage);
+  delay(1000);
+  gsmSerial.write(0x1A); //it will  End SMS
+  delay(1000);
+  
+  // Display SMS sent on LCD
+  lcd.clear();
+  lcd.print("SMS Sent!");
+  delay(2000);
+  lcd.clear();
+  lcd.print("Vehicle Tracker");
+  lcd.setCursor(0, 1);
+  lcd.print("Waiting for GPS...");
+}
